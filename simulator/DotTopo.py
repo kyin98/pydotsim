@@ -8,7 +8,7 @@ from logging import getLogger
 
 log = getLogger()
 
-known_node_attributes = set(['vm_type', 'bridge', 'bond'])
+known_node_attributes = set(['vm_type', 'bridge', 'bond', 'links'])
 
 class DotTopo(object):
     def __init__(self, graph=None):
@@ -31,8 +31,38 @@ class DotTopo(object):
                             node.set(attr, 'default')
                         else:
                             node.set(attr, [])
+
+                    # populate links attribute
+                    links = self._populate_links_(node.get_name())
+                    for link in links:
+                        if link not in node.get('links'):
+                            node.get('links').append(link)
         else:
             self.graph = pydot.Dot(graph_type='graph')
+
+    def _populate_links_(self, node_name):
+        """
+        Method Name:    _populate_links_
+                          - Used in the initialization to populate the
+                            links attribute field for a given node
+
+        Parameters:     node_name
+                          - Name of the node to populate links attribute
+
+        Returns:        list
+                          - list of edges associated with the given node
+        """
+        edges = self.graph.get_edges()
+        links = []
+
+        for edge in edges:
+            src, sintf = edge.get_source().split(':')
+            dst, dintf = edge.get_destination().split(':')
+
+            if (src == node_name) or (dst == node_name):
+                links.append(edge)
+
+        return links
 
     def add_node(self, node_name, vm_type='default', **kwargs):
         """
@@ -182,7 +212,8 @@ class DotTopo(object):
 
         if not nodes:
             return []
-
+        
+        node = nodes[0]
         labels = node.get_label()
 
         return labels.split('|')
@@ -201,12 +232,29 @@ class DotTopo(object):
 
         self.graph.add_edge(edge)
 
+        for name in [local_node, remote_node]:
+            node = self.get_node_from_name(name)
+            links = node.get('links')
+            if links:
+                links.append(edge)
+            else:
+                node.set('links', [edge])
+
         return edge
 
     def delete_link(self, local_node, local_intf, remote_node, remote_intf):
-        # Delete edge from the graph
-        return self.graph.del_edge('{0}:{1}'.format(local_node, local_intf),
-                                   dst='{0}:{1}'.format(remote_node, remote_intf))
+        # TODO: Find the edge in all the associated nodes and remove the edge
+        edge = self.get_links(local_node, local_intf, remote_node, remote_intf)
+        if edge:
+            for name in [local_node, remote_node]:
+                node = self.get_node_from_name(name)
+                links = node.get('links')
+                if links and (edge in links):
+                    links.remove(edge[0])
+
+            # Delete edge from the graph
+            return self.graph.del_edge('{0}:{1}'.format(local_node, local_intf),
+                                       dst='{0}:{1}'.format(remote_node, remote_intf))
 
     def get_links(self, local_node, remote_node, local_intf=None, remote_intf=None):
         # TODO: Need to handle the reverse case
@@ -238,6 +286,31 @@ class DotTopo(object):
 
             return found_edges
 
+    def get_links_for_node(self, node_name):
+        """
+        edges = self.graph.get_edges()
+        links = []
+
+        for edge in edges:
+            src, sintf = edge.get_source().split(':')
+            dst, dintf = edge.get_destination().split(':')
+
+            if (src == node_name) or (dst == node_name):
+                links.append(edge)
+
+        return links
+        """
+        node = self.get_node_from_name(node_name)
+
+        if not node:
+            return []
+        else:
+            links = node.get('links')
+            if links:
+                return links
+            else:
+                return []
+
     def get_node_from_name(self, node_name):
         nodes = self.graph.get_node(node_name)
 
@@ -245,6 +318,9 @@ class DotTopo(object):
             return nodes[0]
         else:
             return None
+
+    def get_nodes(self):
+        return self.graph.get_nodes()
 
     def write_to_file(self):
         pass
