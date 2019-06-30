@@ -17,7 +17,7 @@ log = getLogger()
 
 class DotSimulator(object):
     def __init__(self):
-        self.builder = BuilderSelector().builder
+        self.builder = BuilderSelector(iself.graph).builder
 
     def configure(self):
         pass

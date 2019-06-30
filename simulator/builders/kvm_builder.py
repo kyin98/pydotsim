@@ -11,8 +11,16 @@ base_ports = 6 # This is 1 port for the SSH, monitor, console, http, https, rest
 default_vm_port_types = ['serial', 'monitor', '22', '80', '443', '8080']
 kvm_options = { 'serial':   '-serial telnet::{0},server,nowait',
                 'monitor':  '-monitor telnet::{0},server,nowait',
-                'eth0':     '-net user,dnssearch=cumulus.test,vlan=10,net=192.168.0.15/24',
-                'fwd_ports':',hostfwd=tcp::{0}-:{1}'}
+                'eth0':     '-net user,dnssearch=cumulus.test,vlan=10,net=192.168.0.15/24 ' + \
+                            '-net nic,vlan=10,macaddr={0},model=virtio',
+                'fwd_ports':',hostfwd=tcp::{0}-:{1}',
+                'links':    '-netdev socket,udp={daddr}:{dport},localaddr={saddr}:{sport},id={dev} ' + \
+                            '-device virtio-net-pci,mac={mac},addr={slot}.{function},multifunction={multifunction},netdev={dev},id={name}',
+                'image':    '-drive file={0},if=virtio,werror=report'}
+
+
+class NoMorePciSlots(Exception):
+    pass
 
 
 class KvmBuilder(BuilderBase):
@@ -40,7 +48,8 @@ class KvmBuilder(BuilderBase):
             node.set('udp_ports', ports)
             build_params = { 'ports': ports,
                              'links': node.get('links'),
-                             'name': node.get_name() }
+                             'name': node.get_name(),
+                             'node_id': node.get('id') }
 
             vm_obj = class_vm_type(**build_params)
             node.set('builder', vm_obj)
@@ -81,6 +90,11 @@ class DefaultVmType(object):
         else:
             self.name = 'noname'
 
+        if 'node_id' in kwargs:
+            self.node_id = kwargs['node_id']
+        else:
+            self.node_id = 0
+
         for i, port_type in enumerate(default_vm_port_types):
             self.params[port_type] = self.ports[i]
             self.index = i
@@ -101,8 +115,26 @@ class DefaultVmType(object):
                 self.index += 1
                 link.set('remote_port', self.ports[self.index])
 
+    def get_pci_info(self, idx):
+        base_pci_slot = 6
+        pci_slot = base_pci_slot + (idx/8)
+        pci_function = idx % 8
+        multifunction = "on" if pci_function == 0 else "off"
+
+        if pci_slot > 31:
+            raise NoMorePciSlots('No more PCI slots available to add interfaces')
+
+        return pci_slot, pci_function, multifunction
+
+    def get_eth0_mac(self):
+        return "00:0a:00:{0:02x}:{1:02x}:00".format((self.node_id >> 8) & 0xff, self.node_id & 0xff)
+
+    def get_intf_mac(self, intf_id):
+        return "00:02:00:{0:02x}:{1:02x}:{2:02x}".format((self.node_id >> 8) & 0xff, self.node_id & 0xff, intf_id & 0xff)
+
     def build_kvm_cmdline(self):
-        cmd = ['sudo', '/usr/bin/kvm', '-enable-kvm']
+        cmd = ['sudo', '/usr/bin/kvm', '-enable-kvm', '-nographic', 
+               '-name {0}'.format(self.name)]
 
         for port_type in ['serial', 'monitor']:
             cmd.append(kvm_options[port_type].format(self.params[port_type]))
@@ -112,7 +144,35 @@ class DefaultVmType(object):
         for port_type in default_vm_port_types[2:]:
             fwd_port_str += kvm_options['fwd_ports'].format(self.params[port_type], port_type)
 
-        cmd.append(kvm_options['eth0']+fwd_port_str)
+        cmd.append(kvm_options['eth0'].format(self.get_eth0_mac())+fwd_port_str)
+
+        cmd.append(kvm_options['image'].format(self.image))
+
+        for i, link in enumerate(self.links):
+            slot, func, multifunc = self.get_pci_info(i)
+
+            link_params = {'daddr': '127.0.0.1',
+                           'saddr': '127.0.0.1',
+                           'mac': self.get_intf_mac(i),
+                           'slot': slot,
+                           'function': func,
+                           'multifunction': multifunc,
+                           'dev': i}
+
+            if self.name == link.get_source().split(':')[0]:
+                sport = link.get('local_port')
+                dport = link.get('remote_port')
+                name = link.get_source().split(':')[1]
+            elif self.name == link.get_destination().split(':')[0]:
+                sport =link.get('remote_port')
+                dport = link.get('local_port')
+                name = ink.get_destination().split(':')[1]
+
+            link_params['sport'] = sport
+            link_params['dport'] = dport
+            link_params['name'] = name
+
+            cmd.append(kvm_options['links'].format(**link_params))
 
         return cmd
 

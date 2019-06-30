@@ -21,6 +21,8 @@ class DotTopo(object):
 
                 # Make sure that the nodes have the custom
                 # attributes
+                self._populate_missing_data_()
+                """
                 nodes = self.graph.get_nodes()
                 for node in nodes:
                     node_attrs = set(node.get_attributes().keys())
@@ -37,8 +39,34 @@ class DotTopo(object):
                     for link in links:
                         if link not in node.get('links'):
                             node.get('links').append(link)
+                """
         else:
             self.graph = pydot.Dot(graph_type='graph')
+
+    def _populate_missing_data_(self):
+        nodes = self.graph.get_nodes()
+        needs_node_id = []
+        for node in nodes:
+            if not node.get('id'):
+                needs_node_id.append(node)
+
+            node_attrs = set(node.get_attributes().keys())
+            missing_attrs = known_node_attributes.difference(node_attrs)
+
+            for attr in missing_attrs:
+                if attr == 'vm_type':
+                    node.set(attr, 'default')
+                else:
+                    node.set(attr, [])
+
+            # populate links attribute
+            links = self._populate_links_(node.get_name())
+            for link in links:
+                if link not in node.get('links'):
+                    node.get('links').append(link)
+
+        for node in needs_node_id:
+            node.set('id', self.get_next_node_id())
 
     def _populate_links_(self, node_name):
         """
@@ -63,6 +91,34 @@ class DotTopo(object):
                 links.append(edge)
 
         return links
+
+    def get_next_node_id(self):
+        """
+        Method Name:    get_next_node_id
+                          - Get the next unused node ID
+
+        Parameters:     None
+
+        Returns:        int
+                          - Integer value of the next unused node ID
+        """
+        nodes = self.graph.get_nodes()
+        if not nodes:
+            return 1
+
+        idx = 0
+        not_set = 0
+        for node in nodes:
+            node_id = node.get('id')
+            if ((node_id == 0) or node_id) and (node_id >= idx):
+                idx = node_id + 1
+            elif node_id == None:
+                not_set += 1
+
+        if not_set == len(nodes):
+            idx = 1
+
+        return idx
 
     def add_node(self, node_name, vm_type='default', **kwargs):
         """
@@ -98,8 +154,20 @@ class DotTopo(object):
             else:
                 bonds = []
 
+            if ('id' in kwargs) and isinstance(kwargs['id'], int):
+                node_id = kwargs['id']
+            elif ('id' in kwargs):
+                try:
+                    int(kwargs['id'])
+                except ValueError:
+                    node_id = self.get_next_node_id()
+                else:
+                    node_id = int(kwargs['id'])
+            else:
+                node_id = self.get_next_node_id()
+                
             node = pydot.Node(node_name, vm_type=vm_type, bridges=bridges, 
-                              bonds=bonds, **kwargs)
+                              bonds=bonds, id=node_id, **kwargs)
             self.graph.add_node(node)
 
         return node
