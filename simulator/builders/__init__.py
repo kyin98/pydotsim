@@ -36,7 +36,7 @@ class BuilderSelector(object):
                     The VM builder that has the lowest prefernce and is supported
                     will be the one that is chosen.
     """
-    def __init__(self, graph):
+    def __init__(self, graph, sim_dir, image_depot):
         self.graph = graph
 
         current_path = os.path.dirname(os.path.realpath(__file__))
@@ -66,7 +66,7 @@ class BuilderSelector(object):
 
         for builder in builders:
             if builder.is_builder_supported():
-                self.builder = builder(self.graph)
+                self.builder = builder(self.graph, sim_dir, image_depot)
                 break
         else:
             raise NoBuildersSupported('Couldn\'t find any builders that are '
