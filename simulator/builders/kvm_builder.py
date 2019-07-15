@@ -94,7 +94,6 @@ class KvmBuilder(BuilderBase):
         with open('{0}/topo.yaml'.format(self.sim_dir), 'r') as stream:
             topo = yaml.load(stream)
 
-        import ipdb; ipdb.set_trace()
         for node in topo.get_nodes():
             if node.get('pid'):
                 try:
