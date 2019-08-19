@@ -51,7 +51,7 @@ class KvmBuilder(BuilderBase):
 
     def _construct_vms_(self):
         total_ports = 0
-        for node in self.toology.get_nodes():
+        for node in self.topology.get_nodes():
             if node.get('vm_type'):
                 class_vm_type = vm_type_map[node.get('vm_type')]
             else:
