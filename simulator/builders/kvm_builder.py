@@ -83,10 +83,11 @@ class KvmBuilder(BuilderBase):
             cmds = self.nodes[node.get_name()].build_kvm_cmdline()
             log.debug(" ".join(cmds))
             pid = subprocess.Popen(" ".join(cmds), shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            log.debug('PID for node {0}: {1}'.format(node.get_name(), pid.pid))
             node.set('pid', pid.pid)
 
         with open('{0}/topo.yaml'.format(self.sim_dir), 'w') as stream:
-            yaml.dump(self.graph, stream)
+            yaml.dump(self.graph.graph, stream)
 
     def stop(self):
         log.debug('Stopping KVMs')
