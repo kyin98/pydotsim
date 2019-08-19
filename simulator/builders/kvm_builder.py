@@ -39,19 +39,19 @@ class KvmBuilder(BuilderBase):
     preference = 10
 
     def __init__(self, graph, sim_dir, image_depot):
-        self.graph = graph
+        self.topology = graph
         self.sim_dir = sim_dir
         self.image_depot = image_depot
         self.nodes = {}
         self.port_check = PortResourceCheck()
         log.debug('KvmBuilder')
 
-        if self.graph:
+        if self.topology:
             self._construct_vms_()
 
     def _construct_vms_(self):
         total_ports = 0
-        for node in self.graph.get_nodes():
+        for node in self.toology.get_nodes():
             if node.get('vm_type'):
                 class_vm_type = vm_type_map[node.get('vm_type')]
             else:
@@ -63,12 +63,12 @@ class KvmBuilder(BuilderBase):
             else:
                 vm_image = class_vm_type.image
 
-            ports_needed = len(self.graph.get_interfaces(node.get_name())) + base_ports
+            ports_needed = len(self.topology.get_interfaces(node.get_name())) + base_ports
             log.debug('{0} needs {1} UDP ports'.format(node.get_name(), ports_needed))
             ports = self.port_check.get_free_ports(ports_needed)
             node.set('udp_ports', ports)
             build_params = { 'ports': ports,
-                             'links': self.graph.get_links_for_node(node.get_name()),
+                             'links': self.topology.get_links_for_node(node.get_name()),
                              'name': node.get_name(),
                              'node_id': node.get('id'),
                              'base_sim_dir': self.sim_dir,
@@ -79,7 +79,7 @@ class KvmBuilder(BuilderBase):
 
     def run(self):
         log.debug('Starting KVMs')
-        for node in self.graph.get_nodes():
+        for node in self.topology.get_nodes():
             cmds = self.nodes[node.get_name()].build_kvm_cmdline()
             log.debug(" ".join(cmds))
             pid = subprocess.Popen(" ".join(cmds), shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
@@ -87,7 +87,7 @@ class KvmBuilder(BuilderBase):
             node.set('pid', pid.pid)
 
         with open('{0}/topo.yaml'.format(self.sim_dir), 'w') as stream:
-            yaml.dump(self.graph.graph, stream)
+            yaml.dump(self.topology.graph, stream)
 
     def stop(self):
         log.debug('Stopping KVMs')
