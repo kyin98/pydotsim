@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+# Written by Ken Yin
 
 import os
 import pydot
@@ -15,6 +16,8 @@ from simulator.builders import BuilderBase, BuilderSelector
 from simulator.utilities.ImageDepot import ImageDepot
 from collections import OrderedDict
 from logging import getLogger
+import logging
+import sys
 
 log = getLogger(__name__)
 
@@ -55,4 +58,45 @@ class DotSimulator(object):
         self.builder.stop()
 
     def run_from_cmdline(self):
-        pass
+        parser = argparse.ArgumentParser(description='Start/Stop PyDotSimulator')
+
+        parser.add_argument('--info', action='store_true', help='Display the PyDot topology', default=None)
+        parser.add_argument('--start', action='store_true', help='Start the PyDot topology', default=None)
+        parser.add_argument('--stop', action='store_true', help='Stop the PyDot topology', default=None)
+        parser.add_argument('--loglevel', help='Set the logging level of the output', choices=['DEBUG', 'INFO', 'WARN', 'ERROR'], default='INFO')
+        parser.add_argument('--dir', help='Directory that the simulation run/stores info', default=None)
+        parser.add_argument('--image-depot', help='Directory that stores all the base VM images', default=None)
+
+        args = parser.parse_args()
+
+        if args.loglevel == 'DEBUG':
+            level = logging.DEBUG
+        elif args.loglevel == 'ERROR':
+            level = logging.ERROR
+        elif args.loglevel == 'WARN':
+            level = logging.WARN
+        else:
+            level = logging.INFO
+
+        # Set Logger
+        log.setLevel(level)
+        FORMAT = "%(asctime)s:%(levelname)7s:%(name)24s: %(message)s" 
+        logging.basicConfig(format=FORMAT)
+
+        if args.image_depot:
+            if os.path.exists(args.image_depot):
+                self.image_depot = args.image_depot
+            else:
+                log.info('The image depot {0} isn\'t a directory'.format(args.image_depot))
+                sys.exit(1)
+
+        if args.info:
+            log.info(self.show())
+
+        if args.start and (not args.stop):
+            log.debug("Starting Simulation in the directory: {0}".format(self.sim_dir))
+            self.run()
+        elif args.stop and (not args.start) and args.dir:
+            log.debug('Stopping Simultion in {0}'.format(args.dir))
+            self.builder.sim_dir = self.sim_dir
+            self.stop()
