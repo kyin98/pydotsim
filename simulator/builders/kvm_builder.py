@@ -1,4 +1,6 @@
 #!/usr/bin/env python 
+# Written by Ken Yin
+
 import os
 import subprocess
 import yaml
@@ -36,6 +38,12 @@ class NoQcow2Image(Exception):
 
 
 class KvmBuilder(BuilderBase):
+    """
+    Class Name:         KvmBuilder
+    Description:        This class defines how to build the simulation using KVM/QEMU.
+                        The VMs are brought up by using the raw '/usr/bin/kvm' command
+                        found in the system.
+    """
     preference = 10
 
     def __init__(self, graph, sim_dir, image_depot):
@@ -78,6 +86,15 @@ class KvmBuilder(BuilderBase):
             self.nodes[node.get_name()] = vm_obj
 
     def run(self):
+        """
+        Method Name:        run
+
+        Parameters:         None
+
+        Description:        Startup the VM associated with the topology.
+                            Then, dump the pydot graph into a YAML file
+                            for use by other processes.
+        """
         log.debug('Starting KVMs')
         for node in self.topology.get_nodes():
             cmds = self.nodes[node.get_name()].build_kvm_cmdline()
@@ -90,6 +107,15 @@ class KvmBuilder(BuilderBase):
             yaml.dump(self.topology.graph, stream)
 
     def stop(self):
+        """
+        Method Name:        stop
+
+        Parameters:         None
+
+        Description:        Stop a simulation in a given simulation directory.
+                            This directory must contain the 'topo.yaml' file
+                            that was created when the method 'run' was called.
+        """
         log.debug('Stopping KVMs')
 
         with open('{0}/topo.yaml'.format(self.sim_dir), 'r') as stream:
@@ -109,6 +135,16 @@ class KvmBuilder(BuilderBase):
                     continue
 
     def _kill_child_pid_(self, pid):
+        """
+        Method Name:        _kill_child_pid_
+
+        Parameters:         pid
+                             - psutil.Process object for a specific PID
+
+        Description:        Find the children PIDs for the giev PID and kill
+                            it when found.  The parent PIDs should naturally
+                            terminate when all the children are killed.
+        """
         if not pid.children():
             log.debug('Killing PID: {0}'.format(pid.pid))
             subprocess.Popen(['sudo', 'kill', '-9', '{0}'.format(pid.pid)], 
