@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+# Written by Ken Yin
 
 import pydot
 import os
