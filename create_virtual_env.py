@@ -24,15 +24,16 @@ def main():
     parser = argparse.ArgumentParser(description='Setup user environment')
     parser.add_argument('--loglevel', help='Logging level', choices=['DEBUG',
                         'ERROR', 'INFO', 'WARN'])
-    parser.add_argument('--vdir', help='Directory to create the virtual environment')
+    parser.add_argument('--vdir', help='Directory to create the virtual environment in')
 
     args = parser.parse_args()
 
     if args.vdir:
-        base_dir = os.path.abspath(args.vdir)
+        work_space = os.path.abspath(args.vdir)
     else:
-        base_dir = os.getcwd() + '/.venv'
+        work_space = os.getcwd()
 
+    base_dir = work_space + '/.venv'
     cmds = ['virtualenv {0}'.format(base_dir)]
 
     # Link the apt libraries in the virtual environment
@@ -44,7 +45,7 @@ def main():
     for apt_file in apt_libs:
         cmds.append("ln -s {0} {1}".format(apt_file, sitepkgs))
 
-    cmds.append('{0}/bin/pip install --no-cache-dir -q -r requirements.txt'.format(base_dir))
+    cmds.append('{0}/bin/pip install --no-cache-dir -q -r requirements.txt -e {1}'.format(base_dir, work_space))
 
     for cmd in cmds:
         subprocess.check_output(shlex.split(cmd))
