@@ -160,6 +160,13 @@ class KvmBuilder(BuilderBase):
 
 
 class DefaultVmType(object):
+    """
+    Class Name:     DefaultVmType
+    Description:    Base VM class which other VM class types can
+                    inherit and overload methods.  This class has
+                    been implemented for KVM/QEMU specifically and
+                    most likely won't work for other builder types.
+    """
     def __init__(self, **kwargs):
         self.params = {}
         self.index = 0
@@ -238,6 +245,13 @@ class DefaultVmType(object):
             self.ram = 2048
 
     def create_backer_image(self):
+        """
+        Method Name:        create_backer_image
+
+        Parameters:         None
+
+        Description:        Create the QEMU backer image that the simulation will use.
+        """
         if not os.path.exists(os.path.join(self.base_sim_dir, self.name)):
             os.makedirs(os.path.join(self.base_sim_dir, self.name))
 
@@ -250,6 +264,16 @@ class DefaultVmType(object):
         return '{0}/{1}.qcow2'.format(os.path.join(self.base_sim_dir, self.name), self.name)
 
     def get_pci_info(self, idx):
+        """
+        Method Name:        get_pci_info
+
+        Parameters:         idx
+                             - The index number of the interface
+
+        Description:        Return a unique PCI slot and multifunction value
+                            for a node.  This will be used when creating the
+                            interfaces on the KVM command line
+        """
         base_pci_slot = 6
         pci_slot = base_pci_slot + (idx/8)
         pci_function = idx % 8
@@ -261,32 +285,53 @@ class DefaultVmType(object):
         return pci_slot, pci_function, multifunction
 
     def get_eth0_mac(self):
+        """
+        Method Name:        get_eth0_mac
+
+        Parameters:         None
+
+        Description:        Set the MAC address for 'eth0' based on the 'node_id' since it should
+                            be unique
+        """
         return "00:0a:00:{0:02x}:{1:02x}:00".format((self.node_id >> 8) & 0xff, self.node_id & 0xff)
 
     def get_intf_mac(self, intf_id):
+        """
+        Method Name:        get_intf_mac
+
+        Parameters:         intf_idx
+                                - The index for the interface which the MAC address is getting set
+
+        Description:        Set the MAC address for an interface based on the interface index.  The
+                            MAC address is based on the 'node id' and 'interface id' since this should
+                            yield a unique pair
+        """
         return "00:02:00:{0:02x}:{1:02x}:{2:02x}".format((self.node_id >> 8) & 0xff, self.node_id & 0xff, intf_id & 0xff)
 
-    def build_kvm_cmdline(self):
+    def _build_common_kvm_options_(self):
+        """
+        """
         cmd = ['sudo', '/usr/bin/kvm', '-enable-kvm', '-nographic', 
-               '-name {0}'.format(self.name)]
+               '-name {0}'.format(self.name), '-cpu host']
 
         for port_type in ['serial', 'monitor']:
             cmd.append(kvm_options[port_type].format(self.params[port_type]))
 
-        # Build the eth0 parameters
-        fwd_port_str = ""
-        for port_type in default_vm_port_types[2:]:
-            fwd_port_str += kvm_options['fwd_ports'].format(self.params[port_type], port_type)
-
-        cmd.append(kvm_options['eth0']+fwd_port_str)
-        cmd.append(kvm_options['nic'].format(self.get_eth0_mac()))
-
         cmd.append(kvm_options['cores'].format(self.cores))
         cmd.append(kvm_options['ram'].format(self.ram))
 
-        # Create a backer image
-        #cmd.append(kvm_options['image'].format(self.image))
-        cmd.append(kvm_options['image'].format(self.create_backer_image()))
+        return cmd
+
+    def build_kvm_cmdline(self):
+        """
+        Method Name:        build_kvm_cmdline
+
+        Parameters:         None
+
+        Description:        This method creates the command line to be used to start this particular
+                            node.
+        """
+        cmd = self._build_common_kvm_options_()
 
         for i, link in enumerate(self.links):
             slot, func, multifunc = self.get_pci_info(i)
@@ -314,16 +359,124 @@ class DefaultVmType(object):
 
             cmd.append(kvm_options['links'].format(**link_params))
 
+        # Build the eth0 parameters
+        fwd_port_str = ""
+        for port_type in default_vm_port_types[2:]:
+            fwd_port_str += kvm_options['fwd_ports'].format(self.params[port_type], port_type)
+
+        cmd.append(kvm_options['eth0']+fwd_port_str)
+        cmd.append(kvm_options['nic'].format(self.get_eth0_mac()))
+
+        # Create a backer image
+        cmd.append(kvm_options['image'].format(self.create_backer_image()))
+
         return cmd
 
 
 class CumulusVmType(DefaultVmType):
+    """
+    Class Name:     CumulusVmType
+    Description:    Class for a Cumulus Networks node.
+    """
     image = 'cumulus-3.7.6'
     pass
 
 
-class CiscoVmType(object):
-    pass
+class CiscoVmType(DefaultVmType):
+    """
+    Class Name:     CiscoVmType
+    Description:    This class is for a Cisco NXOSV node.  It implements
+                    building the KVM command line that is needed to run
+                    a NXOSV VM in KVM.
+    """
+    image = 'cisco_nxosv-7.0.3'
+
+    def __init__(self, **kwargs):
+        super(CiscoVmType, self).__init__(**kwargs)
+        self.links_format = "-netdev socket,udp={daddr}:{dport},localaddr={saddr}:{sport},id=dev{dev} " + \
+                            "-device e1000,addr={slot}.{function}," + \
+                            "multifunction={multifunction},netdev=dev{dev},id={name}"
+        self.mgmt_intf_format = '-netdev user,net=192.168.0.15/24'
+
+        # Some of the Cisco VMs need more than 4 cores and 8G of RAM to run
+        if self.cores < 4:
+            self.cores = 4
+
+        if self.ram < 8192:
+            self.ram = 8192
+
+    def build_kvm_cmdline(self):
+        """
+        Method Name:        build_kvm_cmdline
+
+        Parameters:         None
+
+        Description:        This method creates the command line to be used to start the Cisco NXOSV
+                            node.  The NXOSV KVM needs to have the options set in a specific order
+                            for the VM to come up correctly
+        """
+        cmd = ['sudo', '/usr/bin/kvm', '-enable-kvm', '-cpu host']
+
+        # Get UEFI BIOS image.  Assuming that the UEFI bios image
+        # name is 'bios.bin' and that it is in the same directory
+        # as the base image.  Change this if this isn't true.
+        img_dir = '/'.join(self.base_image.split('/')[:-1])
+        cmd.append('-bios {0}/bios.bin '.format(img_dir))
+
+        for port_type in ['serial', 'monitor']:
+            cmd.append(kvm_options[port_type].format(self.params[port_type]))
+
+        # Build the eth0 parameters
+        fwd_port_str = ""
+        for port_type in default_vm_port_types[2:]:
+            fwd_port_str += kvm_options['fwd_ports'].format(self.params[port_type], port_type)
+
+        cmd.append(self.mgmt_intf_format+fwd_port_str+',id=mgmt0')
+
+        # Create backer image
+        img_options = '-device ahci,id=ahci0,bus=pci.0,multifunction=on '
+        img_options += '-drive file={0},if=none,id=drive-sata-disk0,id=drive-sata-disk0,format=qcow2 '.format(self.create_backer_image())
+        img_options += '-device ide-drive,bus=ahci0.0,drive=drive-sata-disk0'
+
+        cmd.append(img_options)
+
+        cmd.append('-nographic')
+        cmd.append(kvm_options['cores'].format(self.cores))
+        cmd.append(kvm_options['ram'].format(self.ram))
+
+        # Build backend parameters for the mgmt port
+        mgmt_str = '-device e1000,netdev=mgmt0,mac={0}'.format(self.get_eth0_mac())
+        cmd.append(mgmt_str)
+
+        cmd.append('-name {0}'.format(self.name))
+
+        for i, link in enumerate(self.links):
+            slot, func, multifunc = self.get_pci_info(i)
+
+            link_params = {'daddr': '127.0.0.1',
+                           'saddr': '127.0.0.1',
+                           'mac': self.get_intf_mac(i),
+                           'slot': slot,
+                           'function': func,
+                           'multifunction': multifunc,
+                           'dev': i}
+
+            if self.name == link.get_source().split(':')[0]:
+                sport = link.get('local_port')
+                dport = link.get('remote_port')
+                name = link.get_source().split(':')[1]
+            elif self.name == link.get_destination().split(':')[0]:
+                sport =link.get('remote_port')
+                dport = link.get('local_port')
+                name = link.get_destination().split(':')[1]
+
+            link_params['sport'] = sport
+            link_params['dport'] = dport
+            link_params['name'] = name
+
+            cmd.append(self.links_format.format(**link_params))
+
+        return cmd
 
 
 class AristaVmType(object):
