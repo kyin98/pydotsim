@@ -322,16 +322,10 @@ class DefaultVmType(object):
 
         return cmd
 
-    def build_kvm_cmdline(self):
+    def _build_kvm_intfs_(self):
         """
-        Method Name:        build_kvm_cmdline
-
-        Parameters:         None
-
-        Description:        This method creates the command line to be used to start this particular
-                            node.
         """
-        cmd = self._build_common_kvm_options_()
+        cmd = []
 
         for i, link in enumerate(self.links):
             slot, func, multifunc = self.get_pci_info(i)
@@ -359,6 +353,20 @@ class DefaultVmType(object):
 
             cmd.append(kvm_options['links'].format(**link_params))
 
+        return cmd
+
+    def build_kvm_cmdline(self):
+        """
+        Method Name:        build_kvm_cmdline
+
+        Parameters:         None
+
+        Description:        This method creates the command line to be used to start this particular
+                            node.
+        """
+        cmd = self._build_common_kvm_options_()
+        cmd += self._build_kvm_intfs_()
+
         # Build the eth0 parameters
         fwd_port_str = ""
         for port_type in default_vm_port_types[2:]:
@@ -378,6 +386,7 @@ class CumulusVmType(DefaultVmType):
     Class Name:     CumulusVmType
     Description:    Class for a Cumulus Networks node.
     """
+    # Define the default image version to use if one isn't given
     image = 'cumulus-3.7.6'
     pass
 
@@ -435,7 +444,7 @@ class CiscoVmType(DefaultVmType):
 
         # Create backer image
         img_options = '-device ahci,id=ahci0,bus=pci.0,multifunction=on '
-        img_options += '-drive file={0},if=none,id=drive-sata-disk0,id=drive-sata-disk0,format=qcow2 '.format(self.create_backer_image())
+        img_options += '-drive file={0},if=none,id=drive-sata-disk0,format=qcow2 '.format(self.create_backer_image())
         img_options += '-device ide-drive,bus=ahci0.0,drive=drive-sata-disk0'
 
         cmd.append(img_options)
@@ -479,9 +488,43 @@ class CiscoVmType(DefaultVmType):
         return cmd
 
 
-class AristaVmType(object):
-    pass
+class AristaVmType(DefaultVmType):
+    """
+    Class Name:     AristaVmType
+    Description:    This class is for a Arista EOS Lab node.  It implements
+                    building the KVM command line that is needed to run
+                    an Arista EOS Lab VM in KVM.
+    """
+    image = 'arista_eos-4.21.3'
 
+    def __init__(self, **kwargs):
+        super(AristaVmType, self).__init__(**kwargs)
+        self.image = '-hda {0}'
+
+    def build_kvm_cmdline(self):
+        """
+        Method Name:        build_kvm_cmdline
+
+        Parameters:         None
+
+        Description:        This method creates the command line to be used to start an Arista
+                            node.
+        """
+        cmd = self._build_common_kvm_options_()
+        cmd += self._build_kvm_intfs_()
+
+        # Build the eth0 parameters
+        fwd_port_str = ""
+        for port_type in default_vm_port_types[2:]:
+            fwd_port_str += kvm_options['fwd_ports'].format(self.params[port_type], port_type)
+
+        cmd.append(kvm_options['eth0']+fwd_port_str)
+        cmd.append(kvm_options['nic'].format(self.get_eth0_mac()))
+
+        # Create a backer image
+        cmd.append(self.image.format(self.create_backer_image()))
+
+        return cmd
 
 vm_type_map = { 'cumulus':  CumulusVmType,
                 'cisco':    CiscoVmType,
