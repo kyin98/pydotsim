@@ -54,9 +54,6 @@ class KvmBuilder(BuilderBase):
         self.port_check = PortResourceCheck()
         log.debug('KvmBuilder')
 
-        if self.topology:
-            self._construct_vms_()
-
     def _construct_vms_(self):
         total_ports = 0
         for node in self.topology.get_nodes():
@@ -73,7 +70,7 @@ class KvmBuilder(BuilderBase):
 
             ports_needed = len(self.topology.get_interfaces(node.get_name())) + base_ports
             log.debug('{0} needs {1} UDP ports'.format(node.get_name(), ports_needed))
-            ports = self.port_check.get_free_ports(ports_needed)
+            ports = self.port_check.get_free_ports(ports_needed, sim_dir=self.sim_dir)
             node.set('udp_ports', ports)
             build_params = { 'ports': ports,
                              'links': self.topology.get_links_for_node(node.get_name()),
@@ -96,6 +93,8 @@ class KvmBuilder(BuilderBase):
                             for use by other processes.
         """
         log.debug('Starting KVMs')
+        self._construct_vms_()
+
         for node in self.topology.get_nodes():
             cmds = self.nodes[node.get_name()].build_kvm_cmdline()
             log.debug(" ".join(cmds))
@@ -106,11 +105,13 @@ class KvmBuilder(BuilderBase):
         with open('{0}/topo.yaml'.format(self.sim_dir), 'w') as stream:
             yaml.dump(self.topology.graph, stream)
 
-    def stop(self):
+    def stop(self, run_from_cmd_line=True):
         """
         Method Name:        stop
 
-        Parameters:         None
+        Parameters:         run_from_cmd_line
+                             - Boolean value indicating if the stop was called
+                               by a different processes
 
         Description:        Stop a simulation in a given simulation directory.
                             This directory must contain the 'topo.yaml' file
@@ -132,7 +133,23 @@ class KvmBuilder(BuilderBase):
                         self._kill_child_pid_(psutil.Process(node.get('pid').pid))
                 except psutil.NoSuchProcess:
                     log.debug('PID {0} is defunct'.format(node.get('pid')))
-                    continue
+
+            if node.get('udp_ports'):
+                if run_from_cmd_line:
+                    # If 'stop' is called from the command line, then the 'used_ports'
+                    # variable won't have any values in it.  So, we need to populate
+                    # the variables
+                    self.port_check.used_ports += node.get('udp_ports')
+
+                    for link in self.topology.get_links_for_node(node.get_name()):
+                        for name in ['local_port', 'remote_port']:
+                            port = link.get(name)
+                            if port:
+                                self.port_check.used_ports.append(port)
+
+                    self.port_check.used_ports = list(set(self.port_check.used_ports))
+
+                self.port_check.release_port(node.get('udp_ports'), sim_dir=self.sim_dir)
 
     def _kill_child_pid_(self, pid):
         """
@@ -310,6 +327,12 @@ class DefaultVmType(object):
 
     def _build_common_kvm_options_(self):
         """
+        Method Name:        _build_common_kvm_options_
+
+        Parameters:         None
+
+        Description:        Build some of the common options that some of the
+                            others KVM command line need.
         """
         cmd = ['sudo', '/usr/bin/kvm', '-enable-kvm', '-nographic', 
                '-name {0}'.format(self.name), '-cpu host']
@@ -324,6 +347,12 @@ class DefaultVmType(object):
 
     def _build_kvm_intfs_(self):
         """
+        Method Name:        _build_kvm_intfs_
+
+        Parameters:         None
+
+        Description:        Builds the KVM command line option for
+                            the VM's interfaces using UDP sockets.
         """
         cmd = []
 

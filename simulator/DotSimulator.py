@@ -99,5 +99,10 @@ class DotSimulator(object):
         elif args.stop and (not args.start) and args.dir:
             log.debug('Stopping Simultion in {0}'.format(args.dir))
             self.sim_dir = args.dir
+
+            # Check if the simulation directory ends with '/'
+            if not self.sim_dir.endswith('/'):
+                self.sim_dir += '/'
+
             self.builder.sim_dir = self.sim_dir
             self.stop()

@@ -23,24 +23,6 @@ class DotTopo(object):
                 # Make sure that the nodes have the custom
                 # attributes
                 self._populate_missing_data_()
-                """
-                nodes = self.graph.get_nodes()
-                for node in nodes:
-                    node_attrs = set(node.get_attributes().keys())
-                    missing_attrs = known_node_attributes.difference(node_attrs)
-
-                    for attr in missing_attrs:
-                        if attr == 'vm_type':
-                            node.set(attr, 'default')
-                        else:
-                            node.set(attr, [])
-
-                    # populate links attribute
-                    links = self._populate_links_(node.get_name())
-                    for link in links:
-                        if link not in node.get('links'):
-                            node.get('links').append(link)
-                """
         else:
             self.graph = pydot.Dot(graph_type='graph')
 
@@ -59,12 +41,6 @@ class DotTopo(object):
                     node.set(attr, 'default')
                 else:
                     node.set(attr, [])
-
-            # populate links attribute
-            #links = self._populate_links_(node.get_name())
-            #for link in links:
-            #    if link not in node.get('links'):
-            #        node.get('links').append(link)
 
         for node in needs_node_id:
             node.set('id', self.get_next_node_id())
@@ -301,26 +277,12 @@ class DotTopo(object):
 
         self.graph.add_edge(edge)
 
-        #for name in [local_node, remote_node]:
-        #    node = self.get_node_from_name(name)
-        #    links = node.get('links')
-        #    if links:
-        #        links.append(edge)
-        #    else:
-        #        node.set('links', [edge])
-
         return edge
 
     def delete_link(self, local_node, local_intf, remote_node, remote_intf):
         # TODO: Find the edge in all the associated nodes and remove the edge
         edge = self.get_links(local_node, local_intf, remote_node, remote_intf)
         if edge:
-            #for name in [local_node, remote_node]:
-            #    node = self.get_node_from_name(name)
-            #    links = node.get('links')
-            #    if links and (edge in links):
-            #        links.remove(edge[0])
-
             # Delete edge from the graph
             return self.graph.del_edge('{0}:{1}'.format(local_node, local_intf),
                                        dst='{0}:{1}'.format(remote_node, remote_intf))
@@ -367,18 +329,6 @@ class DotTopo(object):
                 links.append(edge)
 
         return links
-        """
-        node = self.get_node_from_name(node_name)
-
-        if not node:
-            return []
-        else:
-            links = node.get('links')
-            if links:
-                return links
-            else:
-                return []
-        """
 
     def get_node_from_name(self, node_name):
         nodes = self.graph.get_node(node_name)
