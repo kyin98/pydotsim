@@ -30,5 +30,7 @@ class TestDynamic(DotTopo, DotSimulator):
         self.add_link('r1', 'swp2', 'r3', 'eth1_1')
 
 if __name__ == '__main__':
+    # Example of running from the command line:
+    #     <PATH to pydotsim library>/user_topologies/example_topology1.py --start --loglevel DEBUG
     topo = TestDynamic()
     topo.run_from_cmdline()
