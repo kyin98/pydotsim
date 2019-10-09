@@ -122,7 +122,7 @@ class KvmBuilder(BuilderBase):
         log.debug('Stopping KVMs')
 
         with open('{0}/topo.yaml'.format(self.sim_dir), 'r') as stream:
-            topo = yaml.load(stream)
+            topo = yaml.full_load(stream)
 
         for node in topo.get_nodes():
             if node.get('pid'):
