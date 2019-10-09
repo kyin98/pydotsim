@@ -1,9 +1,11 @@
 #!/usr/bin/env python
+# Written by Ken Yin
 
 import os
 import logging
+from simulator.utilities.LogWrapper import getLogger
 
-log = logging.getLogger(__name__)
+log = getLogger(__name__)
 
 
 class NoDepotPath(Exception):

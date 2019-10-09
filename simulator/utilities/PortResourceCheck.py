@@ -6,8 +6,10 @@ import subprocess
 import fcntl
 import logging
 import socket
+import logging
+from simulator.utilities.LogWrapper import getLogger
 
-log = logging.getLogger(__name__)
+log = getLogger(__name__)
 
 
 class PortResourceCheck(object):
@@ -96,11 +98,6 @@ class PortResourceCheck(object):
 
                 if port not in self.used_ports:
                     self.used_ports.append(port)
-
-        #for i in range(num_ports):
-        #    port = self.free_ports.pop(0)
-        #    ports.append(port)
-        #    self.used_ports.append(port)
 
         return ports
 

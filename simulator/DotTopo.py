@@ -5,9 +5,14 @@ import pydot
 import os
 import argparse
 from collections import OrderedDict
-from logging import getLogger
+#from logging import getLogger
+import logging
+from simulator.utilities.LogWrapper import getLogger
 
-log = getLogger()
+log = getLogger(__name__)
+#if (not log.handlers) and (not log.parent.handlers):
+#    FORMAT = "%(asctime)s:%(levelname)7s:%(name)24s: %(message)s"
+#    logging.basicConfig(format=FORMAT, level=logging.INFO)
 
 known_node_attributes = set(['vm_type', 'bridge', 'bond'])
 

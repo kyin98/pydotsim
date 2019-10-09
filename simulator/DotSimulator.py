@@ -15,9 +15,10 @@ import string
 from simulator.builders import BuilderBase, BuilderSelector
 from simulator.utilities.ImageDepot import ImageDepot
 from collections import OrderedDict
-from logging import getLogger
+#from logging import getLogger
 import logging
 import sys
+from simulator.utilities.LogWrapper import getLogger
 
 log = getLogger(__name__)
 
@@ -79,7 +80,7 @@ class DotSimulator(object):
             level = logging.INFO
 
         # Set Logger
-        log.setLevel(level)
+        logging.getLogger().setLevel(level)
         FORMAT = "%(asctime)s:%(levelname)7s:%(name)24s: %(message)s" 
         logging.basicConfig(format=FORMAT)
 
