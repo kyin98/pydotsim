@@ -12,9 +12,6 @@ import logging
 from simulator.utilities.LogWrapper import getLogger
 
 log = getLogger(__name__)
-#if (not log.handlers) and (not log.parent.handlers):
-#    FORMAT = "%(asctime)s:%(levelname)7s:%(name)24s: %(message)s"
-#    logging.basicConfig(format=FORMAT, level=logging.INFO)
 
 base_ports = 6 # This is 1 port for the SSH, monitor, console, http, https, rest
 default_vm_port_types = ['serial', 'monitor', '22', '80', '443', '8080']
