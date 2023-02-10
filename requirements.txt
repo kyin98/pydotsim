@@ -1,5 +1,5 @@
 pydot==1.2.2
-ipython==4.2.1
+ipython==8.10.0
 ipdb==0.9.3
 ipaddress==1.0.22
 pyyaml==5.1.2
